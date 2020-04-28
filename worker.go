@@ -9,7 +9,10 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-const fetchKeysPerJobType = 6
+const (
+	fetchKeysPerJobType       = 6
+	redisErrorIntervalSeconds = 300
+)
 
 type worker struct {
 	workerID      string
@@ -119,7 +122,12 @@ func (w *worker) loop() {
 		case <-timer.C:
 			job, err := w.fetchJob()
 			if err != nil {
-				logError("worker.fetch", err)
+				// Reset the timer every 10ms, but only log at defined interval
+				now := time.Now().Unix()
+				shouldLog := now%redisErrorIntervalSeconds == 0
+				if shouldLog {
+					logError("worker.fetch", err)
+				}
 				timer.Reset(10 * time.Millisecond)
 			} else if job != nil {
 				w.processJob(job)
